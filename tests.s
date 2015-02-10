@@ -48,7 +48,7 @@ test_strlen:
     mov     rdi, sample_string_poop
     call    strlen
     mov     rdi, rax
-    mov     rsi, 4
+    mov     rsi, 5
     mov     rdx, test_name_strlen_poop
     call    assert_ints_equal
 
