@@ -19,7 +19,6 @@ To run: `strace -f ./minserv` (I wouldn't run it without `strace` tbh)
 
 1. It's bad code. This code is like it was written by a babby who only just learned about global variables and doesn't know how to comment code, mixed in with shellcode.
 2. Bugs. Some of which might kill you. There's very little error checking right now.
-3. It might not quite work in your browser just yet, unless your file is over 1024 bytes. The issue is with `Content-Length` headers being inaccurate right now.
 
 ## Why did you do this?
 

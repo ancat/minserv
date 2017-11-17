@@ -12,6 +12,9 @@ http_response_200:
 http_header_content_length:
     db      'Content-Length: 1024', 13, 10, 0
 
+http_header_content_length_dynamic:
+    db      'Content-Length: '
+
 http_separator:
     db      13, 10, 0
 
@@ -26,6 +29,9 @@ filename:
 
 http_request:
     resb    512
+
+request_method:
+    resb    8
 
 sigact:
     dq 1
@@ -47,6 +53,15 @@ user_addr:
 
 user_addr_len:
     dw 0
+
+file_stat:
+    resb 144
+
+file_size:
+    dq 0
+
+file_size_string:
+    resb 64
 
 global client_fd
 client_fd:
@@ -128,7 +143,8 @@ write_file_to_fd:
 
     mov     rax, 9
     mov     rdi, 0          ; addr
-    mov     rsi, 0x40000    ; size
+    mov     rsi, file_size    ; size
+    mov     rsi, [rsi]
     mov     rdx, 0x1        ; PROT_READ
     mov     rcx, 0x2
     mov     r10, 0x2
@@ -136,9 +152,12 @@ write_file_to_fd:
     mov     r9, 0          ; offset
     syscall
 
+    mov     rdx, file_size
+    mov     rdx, [rdx]
+test:
     mov     rsi, rax
     pop     rdi
-    call    write_string
+    call    write_bytes
     ret
 
 read_into_buffer:
@@ -179,9 +198,11 @@ handle_socket:
     mov     rdx, 512
     call    read_into_buffer
 
-    call    get_filename_from_request
-    cmp     rax, 0
-    jz      handle_404
+    call    extract_info_from_request
+
+    mov     rdi, file_size_string
+    mov     rsi, file_size
+    call    itoa
 
     mov     rdx, client_fd
     mov     rdx, [rdx]
@@ -189,8 +210,14 @@ handle_socket:
 
     mov     rsi, http_response_200
     call    write_string
-    mov     rsi, http_header_content_length
+    mov     rdx, 16
+    mov     rsi, http_header_content_length_dynamic
+    call    write_bytes
+    mov     rsi, file_size_string
     call    write_string
+    mov     rsi, http_separator
+    call    write_string
+
     mov     rsi, http_separator
     call    write_string
 
@@ -251,6 +278,85 @@ get_filename_terminate_string:
 get_filename_fail:
     mov     rax, 0
 get_filename_ret:
+    ret
+
+get_request_method:
+    mov     rsi, http_request
+    mov     rdi, request_method
+    mov     rcx, 0
+get_request_method_copy:
+    cmp     rcx, 8
+    jge     get_request_method_term
+    mov     al, byte [rsi + rcx*1]
+    cmp     al, 0x20
+    jz      get_request_method_term
+    mov     byte [rdi + rcx*1], al
+    inc     rcx
+    jmp     get_request_method_copy
+get_request_method_term
+    mov     byte [rdi + rcx*1], 0
+    ret
+
+get_file_info:
+    mov     rax, 4
+    mov     rdi, filename
+    mov     rsi, file_stat
+    syscall
+    cmp     rax, 0
+    jl      get_file_info_fail
+    mov     rdi, file_size
+    mov     rsi, file_stat
+    mov     rcx, qword [rsi+48]
+    mov     [rdi], rcx
+    mov     rax, 1
+    jmp     get_file_info_ret
+get_file_info_fail:
+    mov     rax, 0
+get_file_info_ret:
+    ret
+
+itoa:
+    push    rdi
+    mov     rax, rsi
+    mov     rbx, [rax]
+    mov     rsi, 0
+itoa_divide:
+    mov     rax, rbx
+    mov     rdx, 0
+    mov     rcx, 10
+    div     rcx
+    add     rdx, 0x30
+    mov     qword [rdi + rsi], rdx
+    inc     rsi
+    mov     rbx, rax
+    cmp     rbx, 0
+    jz itoa_exit
+    jmp itoa_divide
+itoa_exit:
+    pop     rdi
+    mov     rcx, rsi
+    dec     rcx
+    mov     rdx, 0
+itoa_swap:
+    mov     al, byte [rdi + rdx]
+    mov     bl, byte [rdi + rcx]
+    mov     byte [rdi + rcx], al
+    mov     byte [rdi + rdx], bl
+    inc     rdx
+    dec     rcx
+    cmp     rdx, rcx
+    jl      itoa_swap
+itoa_ret:
+    ret
+
+extract_info_from_request:
+    call    get_request_method
+    call    get_filename_from_request
+    cmp     rax, 0
+    jz      handle_404
+    call    get_file_info
+    cmp     rax, 0
+    jz      handle_404
     ret
 
 handle_404:
