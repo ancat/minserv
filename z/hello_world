@@ -1,0 +1,3 @@
+#!/bin/bash
+echo -e "HTTP/1.1 200 Okay??????\r\n"
+echo "magick code $1 $2"

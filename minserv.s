@@ -1,7 +1,7 @@
 section .data
 
 message:
-    db      'HTTP/1.1 200 OK', 13, 10, 'Content-Length: 8', 13, 10, 13, 10, 'bye lol', 10, 0
+    db      'HTTP/1.1 200 OK', 13, 10, 'Content-Length: 8', 13, 10, 13, 10, 'DYNAMIC', 10, 0
 
 http_response_404:
     db      'HTTP/1.1 404 File Not Found', 13, 10, 'Content-Length: 4', 13, 10, 13, 10, '404', 10, 0
@@ -63,8 +63,10 @@ file_size:
 file_size_string:
     resb 64
 
-global client_fd
 client_fd:
+    dq 0
+
+dynamic_file:
     dq 0
 
 section .text
@@ -189,40 +191,25 @@ accept_loop:
     cmp     rax, 0
     jnz     close_sock_go_accept
 
-handle_socket:
+process_request:
     mov     rdx, client_fd
     mov     rdx, [rdx]
     mov     rdi, rdx
-
     mov     rsi, http_request
     mov     rdx, 512
     call    read_into_buffer
-
     call    extract_info_from_request
-
-    mov     rdi, file_size_string
-    mov     rsi, file_size
-    call    itoa
-
-    mov     rdx, client_fd
-    mov     rdx, [rdx]
-    mov     rdi, rdx
-
-    mov     rsi, http_response_200
-    call    write_string
-    mov     rdx, 16
-    mov     rsi, http_header_content_length_dynamic
-    call    write_bytes
-    mov     rsi, file_size_string
-    call    write_string
-    mov     rsi, http_separator
-    call    write_string
-
-    mov     rsi, http_separator
-    call    write_string
-
-    call    write_file_to_fd
-
+    mov     rdi, dynamic_file
+    mov     rdi, qword [rdi]
+    cmp     rdi, 1
+    jz      process_request_dynamic
+process_request_static:
+    call    handle_static_request
+    jmp     process_request_cleanup
+process_request_dynamic:
+    call    handle_dynamic_request
+    jmp     process_request_cleanup
+process_request_cleanup:
     mov     rdx, client_fd
     mov     rdx, [rdx]
     mov     rax, 3
@@ -357,6 +344,81 @@ extract_info_from_request:
     call    get_file_info
     cmp     rax, 0
     jz      handle_404
+    mov     rdi, file_size_string
+    mov     rsi, file_size
+    call    itoa
+    call    check_dynamic_request
+    mov     rdi, dynamic_file
+    mov     qword [rdi], rax
+    ret
+
+handle_static_request:
+    mov     rdx, client_fd
+    mov     rdx, [rdx]
+    mov     rdi, rdx
+
+    mov     rsi, http_response_200
+    call    write_string
+    mov     rdx, 16
+    mov     rsi, http_header_content_length_dynamic
+    call    write_bytes
+    mov     rsi, file_size_string
+    call    write_string
+    mov     rsi, http_separator
+    call    write_string
+
+    mov     rsi, http_separator
+    call    write_string
+
+    call    write_file_to_fd
+    ret
+
+handle_dynamic_request:
+    mov     rax, 33
+    mov     rdi, client_fd
+    mov     rdi, [rdi]
+    mov     rsi, 0
+    syscall
+
+    mov     rax, 33
+    mov     rdi, client_fd
+    mov     rdi, [rdi]
+    mov     rsi, 1
+    syscall
+
+    mov     rax, 33
+    mov     rdi, client_fd
+    mov     rdi, [rdi]
+    mov     rsi, 2
+    syscall
+
+    mov     rax, 59
+    mov     rdi, filename
+    push    0
+    push    request_method
+    push    filename
+    mov     rsi, rsp
+    mov     rdx, 0
+    syscall
+    call    failed_exec
+    ret
+
+failed_exec:
+    mov     rdi, client_fd
+    mov     rdi, [rdi]
+    mov     rsi, message
+    call    write_string
+    call    exithandler
+    ret
+
+check_dynamic_request:
+    mov     rdi, filename
+    mov     si, word [rdi]
+    mov     rax, 0
+    cmp     si, 0x2f7a
+    jnz     check_dynamic_request_ret
+    mov     rax, 1
+check_dynamic_request_ret:
     ret
 
 handle_404:
