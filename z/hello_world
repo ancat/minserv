@@ -1,3 +1,8 @@
-#!/bin/bash
-echo -e "HTTP/1.1 200 Okay??????\r\n"
-echo "magick code $1 $2"
+#!/usr/bin/env python
+import sys
+
+print "HTTP/1.1 200 Okay\r\n"
+print "This is from python land."
+for argv in sys.argv:
+    print "-"*80
+    print argv
