@@ -33,6 +33,15 @@ http_request:
 request_method:
     resb    8
 
+method_post:
+    db      'POST', 0
+
+method_get:
+    db      'GET', 0
+
+method_head:
+    db      'HEAD', 0
+
 sigact:
     dq 1
     dq 0x04000000
@@ -156,7 +165,6 @@ write_file_to_fd:
 
     mov     rdx, file_size
     mov     rdx, [rdx]
-test:
     mov     rsi, rax
     pop     rdi
     call    write_bytes
@@ -228,39 +236,32 @@ close_sock_go_accept:
     jmp accept_loop
 
 get_filename_from_request:
-    mov     rsi, http_request
-    cmp     dword [rsi], 0x20544547
-    jnz     get_filename_fail
-    add     rsi, 4
-    cmp     byte [rsi], 0x2f
-    jnz     get_filename_fail
-    cmp     word [rsi], 0x2f2f
-    jz     get_filename_fail
-    add     rsi, 1
+    mov     rdi, http_request
+    call    strlen
+    mov     rcx, rax
+    mov     al, 0x2f
+    repne   scasb
+    cmp     rcx, 0
+    jz      get_filename_fail
+    dec     rdi
+    add     rdi, 1
     mov     rcx, 0
 get_filename_copy:
     cmp     rcx, 256
     jge     get_filename_fail
-    mov     al, byte [rsi + rcx*1]
+    mov     al, byte [rdi + rcx*1]
     cmp     al, 0
+    jz      get_filename_terminate_string
+    cmp     al, 0x3f
     jz      get_filename_terminate_string
     cmp     al, 0x20
     jz      get_filename_terminate_string
-    cmp     al, 0x2e
-    jz      get_filename_smell_check
-get_filename_writeback:
-    mov     rdi, filename
-    mov     byte [rdi + rcx*1], al
+    mov     rsi, filename
+    mov     byte [rsi + rcx*1], al
     inc     rcx
     jmp     get_filename_copy
-get_filename_smell_check:
-    inc     rcx
-    cmp     byte [rsi + rcx*1], 0x2e
-    jz      get_filename_fail
-    dec     rcx
-    jmp     get_filename_writeback
 get_filename_terminate_string:
-    mov     byte [rdi + rcx*1], 0
+    mov     byte [rsi + rcx*1], 0
     jmp     get_filename_ret
 get_filename_fail:
     mov     rax, 0
@@ -317,8 +318,8 @@ itoa_divide:
     inc     rsi
     mov     rbx, rax
     cmp     rbx, 0
-    jz itoa_exit
-    jmp itoa_divide
+    jz      itoa_exit
+    jmp     itoa_divide
 itoa_exit:
     pop     rdi
     mov     rcx, rsi
@@ -353,6 +354,12 @@ extract_info_from_request:
     ret
 
 handle_static_request:
+    mov     rdi, request_method
+    mov     rsi, method_get
+    call    strcmp
+    cmp     rax, 1
+    jz      handle_404
+
     mov     rdx, client_fd
     mov     rdx, [rdx]
     mov     rdi, rdx
@@ -395,6 +402,7 @@ handle_dynamic_request:
     mov     rax, 59
     mov     rdi, filename
     push    0
+    push    http_request
     push    request_method
     push    filename
     mov     rsi, rsp
@@ -427,6 +435,42 @@ handle_404:
     mov     rsi, http_response_404
     call    write_string
     call    exithandler
+    ret
+
+strlen:
+    push    rdi
+    push    rcx
+    mov     al, 0
+    mov     rcx, 0xffffffffffffffff
+    repne   scasb
+    not     rcx
+    dec     rcx
+    mov     rax, rcx
+    pop     rcx
+    pop     rdi
+    ret
+
+strcmp:
+    push    rdi
+    push    rsi
+    push    rcx
+    call    strlen
+    mov     rcx, rax
+    xchg    rdi, rsi
+    call    strlen
+    xchg    rdi, rsi
+    cmp     rcx, rax
+    jnz     strcmp_notequal
+    repe    cmpsb
+    mov     rax, rcx
+    cmp     rax, 0
+    jz      strcmp_equal
+strcmp_notequal:
+    mov     rax, 1
+strcmp_equal:
+    pop     rcx
+    pop     rsi
+    pop     rdi
     ret
 
 exithandler:
