@@ -281,7 +281,7 @@ get_request_method_copy:
     mov     byte [rdi + rcx*1], al
     inc     rcx
     jmp     get_request_method_copy
-get_request_method_term
+get_request_method_term:
     mov     byte [rdi + rcx*1], 0
     ret
 

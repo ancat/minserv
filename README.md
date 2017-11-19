@@ -14,11 +14,22 @@ To run: `strace -f ./minserv` (I wouldn't run it without `strace` tbh)
 
 `curl -v localhost:8789/hello_world.txt`
 
+`curl -v localhost:8789/z/hello_world`
+
+## Serving Content
+
+Serving static content is as simple as dropping a file or directory in the same directory as the compiled binary. Dynamic content needs to be in the `z/` subdirectory and should have the `+x` bit set. Any executable or script with the proper shebang line will work fine. Dynamic scripts are responsible for setting their own headers.
 
 ## Warnings
 
 1. It's bad code. This code is like it was written by a babby who only just learned about global variables and doesn't know how to comment code, mixed in with shellcode.
 2. Bugs. Some of which might kill you. There's very little error checking right now.
+
+## To Do
+
+1. Tests
+2. Handle syscall error cases
+3. Support for apps written in assembly (loading it instead of just execve'ing everything)
 
 ## Why did you do this?
 
