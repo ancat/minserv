@@ -9,29 +9,11 @@ http_response_404:
 http_response_200:
     db      'HTTP/1.1 200 OK', 13, 10, 0
 
-http_header_content_length:
-    db      'Content-Length: 1024', 13, 10, 0
-
 http_header_content_length_dynamic:
     db      'Content-Length: '
 
 http_separator:
     db      13, 10, 0
-
-http_response:
-    db      'bye lol', 10, 0
-
-example_filename:
-    db      'hello_world.txt', 0
-
-filename:
-    resb    256
-
-http_request:
-    resb    512
-
-request_method:
-    resb    8
 
 method_post:
     db      'POST', 0
@@ -45,7 +27,7 @@ method_head:
 sigact:
     dq 1
     dq 0x04000000
-    dq _start
+    dq server_main
     dq 0
 
 bind_addr:
@@ -63,20 +45,31 @@ user_addr:
 user_addr_len:
     dw 0
 
-file_stat:
-    resb 144
-
 file_size:
     dq 0
-
-file_size_string:
-    resb 64
 
 client_fd:
     dq 0
 
 dynamic_file:
     dq 0
+
+section .bss
+filename:
+    resb    256
+
+http_request:
+    resb    512
+
+request_method:
+    resb    8
+
+file_stat:
+    resb 144
+
+file_size_string:
+    resb 64
+
 
 section .text
 
@@ -175,8 +168,8 @@ read_into_buffer:
     syscall ; read(rdi, rsi, rdx)
     ret
 
-global _start
-_start:
+global server_main
+server_main:
     call set_signal_handler
 
     call    socket
