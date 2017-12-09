@@ -6,15 +6,31 @@
 
 Only dependencies are x86-64 linux kernel, nasm, and gcc.
 
-To build: `nasm -felf64 minserv.s && gcc minserv.o -nostartfiles -static -o minserv`
+To build the server: `make server`
 
 To run: `strace -f ./minserv` (I wouldn't run it without `strace` tbh)
 
+Cleanup (remove intermediary files, tests binary, etc): `make clean`
+
 ## Testing
 
-`curl -v localhost:8789/hello_world.txt`
+Automated tests can be run using `make tests`. This will build a separate `tests` binary that tests the server code. Here's some sample output:
+```
+$ make tests
+nasm -felf64 tests.s -o tests.o
+gcc tests.o -nostartfiles -static -o tests
+./tests
+strlen_poop     test failed
+strlen_empty    test passed
+strcmp_equal    test passed
+some tests failed! :(
+make: *** [tests] Error 1
+```
+The exit code for all tests passing will be zero. Tests are located in `tests.s`.
 
-`curl -v localhost:8789/z/hello_world`
+Manual testing can be done using `curl`, for exampe:
+- `curl -v localhost:8789/hello_world.txt`
+- `curl -v localhost:8789/z/hello_world`
 
 ## Serving Content
 
