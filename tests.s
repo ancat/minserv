@@ -18,6 +18,8 @@ test_name_strlen_empty:
     db      'strlen_empty', 0
 test_name_strcmp_equal:
     db      'strcmp_equal', 0
+test_name_read_write_socket:
+    db      'write_to_socket', 0
 
 seen_failure:
     db      0
@@ -28,20 +30,83 @@ final_pass:
 final_fail:
     db      0x1b, 0x5b, 0x33, 0x31, 0x6d, 'some tests failed! :(', 0x1b, 0x5b, 0x33, 0x39, 0x6d, 10, 0
 
+section .bss
+misc1:
+    resb 256
+
+misc2:
+    resb 256
+
+misc3:
+    resb 256
+
+misc4:
+    resb 256
+
+section .text
 global _start
 _start:
     call    test_strlen
     call    test_strcmp
+    call    test_write_to_socket
     call    print_verdict
     mov     rdi, rax
     mov     rax, 60
-    syscall
+    syscall     ; sys_exit
 
 test_strcmp:
     mov     rdi, sample_string_poop
     mov     rsi, sample_string_poop
     mov     rdx, test_name_strcmp_equal
     call    assert_strings_equal
+    ret
+
+test_write_to_socket:
+    push    rdi
+    push    rsi
+    push    rdx
+    push    rcx
+
+    mov     rdi, misc1
+    call    make_pipes
+
+    mov     rdi, misc1
+    mov     ecx, dword [rdi+4]
+
+    mov     rdi, rcx
+    mov     rsi, 0x00216f6c6c6568
+    push    rsi
+    mov     rsi, rsp
+    call    write_string
+    pop     rsi
+
+    mov     rdi, misc1
+    mov     ecx, dword [rdi]
+    mov     rdi, rcx
+    mov     rsi, misc2
+    mov     rdx, 255
+    call    read_into_buffer
+
+    mov     rsi, 0x00216f6c6c6568
+    push    rsi
+    mov     rsi, rsp
+    mov     rdi, misc2
+    mov     rdx, test_name_read_write_socket
+    call    assert_strings_equal
+    pop     rsi
+
+    mov     rdi, misc1
+    mov     edi, dword [rdi]
+    call    close_socket
+
+    mov     rdi, misc1
+    mov     edi, dword [rdi+4]
+    call    close_socket
+
+    pop     rcx
+    pop     rdx
+    pop     rsi
+    pop     rdi
     ret
 
 test_strlen:
@@ -157,4 +222,14 @@ print_verdict_ret:
     pop     rax
     pop     rsi
     pop     rdi
+    ret
+
+make_pipes:
+    mov     rax, 22 ; sys_pipe
+    syscall         ; rdi = int pipefd[2]
+    ret
+
+close_socket:
+    mov     rax, 3
+    syscall     ; rdi = fd
     ret
